@@ -10,72 +10,110 @@
 #import "math.h"
 
 @interface Calculator()
-@property (nonatomic, strong) NSMutableArray *operandStack;
+@property (nonatomic, strong) NSMutableArray *programStack;
 @end
 
 
 @implementation Calculator
 
-@synthesize operandStack = _operandStack;
+@synthesize programStack = _programStack;
+static NSDictionary *_operations;
 
--(NSMutableArray *)operandStack{
-  if(!_operandStack) _operandStack = [[NSMutableArray alloc] init];
-  return _operandStack;
+-(NSMutableArray *)programStack{
+  if(!_programStack) _programStack = [[NSMutableArray alloc] init];
+  return _programStack;
 }
 
--(void)setOperandStack:(NSMutableArray *)anArray{ _operandStack = anArray; }
+-(void)setprogramStack:(NSMutableArray *)anArray{ _programStack = anArray; }
 
 -(void)pushOperand:(double)operand{
-  [self.operandStack addObject : [NSNumber numberWithDouble:operand]];
+  [self.programStack addObject : [NSNumber numberWithDouble:operand]];
 }
-
--(double)popOperand{
-  NSNumber *operand = [self.operandStack lastObject];
-  if (operand) { [self.operandStack removeLastObject]; }
-  return [operand doubleValue];
-}
-
 
 -(double)performOperation:(NSString *)operation{
+  [self.programStack addObject:operation];
+  return [Calculator runProgram:self.program];
+}
+
+-(id)program{ return [self.programStack copy]; }
+
++(NSDictionary *)operations{
+  if(_operations) return _operations;
+  
+  _operations = [
+    NSDictionary dictionaryWithObjectsAndKeys:
+      [NSValue valueWithPointer:@selector(divisionOperation:)], @"/",
+      [NSValue valueWithPointer:@selector(multiplicationOperation:)], @"*",
+      [NSValue valueWithPointer:@selector(sumOperation:)], @"+",
+      [NSValue valueWithPointer:@selector(substractionOperation:)], @"-",
+      [NSValue valueWithPointer:@selector(squareRootOperation:)], @"sqrt",
+      [NSValue valueWithPointer:@selector(sinOperation:)], @"sin",
+      [NSValue valueWithPointer:@selector(cosineOperation:)], @"cos",
+      [NSValue valueWithPointer:@selector(piOperation:)], @"π",
+    nil
+  ];
+  
+  return _operations;
+}
++(NSString *)programDescription:(id)program{ return @"Pending"; }
+
+
++(double)popOperand:(id)stack{
   double result = 0;
+  NSString *operation;
+  id topOfStack = [stack lastObject];
+  if(topOfStack) [stack removeLastObject];
   
-  if([operation isEqualToString:@"*"]){ result = [self multiplicationOperation]; }
-  else if([operation isEqualToString:@"/"]){ result = [self divisionOperation]; }
-  else if([operation isEqualToString:@"+"]){ result = [self sumOperation]; }
-  else if([operation isEqualToString:@"-"]){ result = [self substractionOperation]; }
-  else if([operation isEqualToString:@"sqrt"]){ result = [self squareRootOperation]; }
-  else if([operation isEqualToString:@"sin"]){ result = [self sinOperation]; }
-  else if([operation isEqualToString:@"cos"]){ result = [self cosineOperation]; }
-  else if([operation isEqualToString:@"π"]){ result = [self piOperation]; }
-  
-  [self pushOperand:result];
+  if([topOfStack isKindOfClass:[NSNumber class]]) result = [topOfStack doubleValue];
+  else if([topOfStack isKindOfClass:[NSString class]]){
+    operation = topOfStack;
+    SEL operationFunction = [[[self operations] objectForKey:operation] pointerValue];
+    result = [[[self class] performSelector:operationFunction withObject:stack] doubleValue];
+  }
   
   return result;
 }
 
--(double)divisionOperation{
-  double result = 0;
-  double divisor = [self popOperand];
++(double)runProgram:(id)program{
+  NSMutableArray *stack;
+  if([program isKindOfClass:[NSArray class]]) stack = [program mutableCopy];
+  
+  return [self popOperand:stack];
+}
 
-  if(divisor) result = [self popOperand] / divisor;
+
++(NSNumber *)divisionOperation:(id)stack{
+  double result = 0;
+  double divisor = [self popOperand:stack];
+
+  if(divisor) result = [self popOperand:stack] / divisor;
   else result = INFINITY;
   
-  return result;
+  return [NSNumber numberWithDouble:result];
 }
--(double)substractionOperation{
-  double subtrahend = [self popOperand];
-  return [self popOperand] - subtrahend;
+
++(NSNumber *)substractionOperation:(id)stack{
+  double result;
+  double subtrahend = [self popOperand:stack];
+  result = [self popOperand:stack] - subtrahend;
+  return [NSNumber numberWithDouble:result];
 }
--(double)multiplicationOperation{ return [self popOperand] * [self popOperand]; }
--(double)sumOperation{ return [self popOperand] + [self popOperand]; }
--(double)squareRootOperation{ return sqrt([self popOperand]); }
--(double)sinOperation{ return sin([self popOperand]);}
--(double)cosineOperation{ return cos([self popOperand]);}
--(double)piOperation{ return M_PI;}
+
++(NSNumber *)multiplicationOperation:(id)stack{ return [NSNumber numberWithDouble:([self popOperand:stack] * [self popOperand:stack])]; }
+
++(NSNumber *)sumOperation:(id)stack{ return [NSNumber numberWithDouble:([self popOperand:stack] + [self popOperand:stack])]; }
+
++(NSNumber *)squareRootOperation:(id)stack{ return [NSNumber numberWithDouble:sqrt([self popOperand:stack])]; }
+
++(NSNumber *)sinOperation:(id)stack{ return [NSNumber numberWithDouble:sin([self popOperand:stack])]; }
+
++(NSNumber *)cosineOperation:(id)stack{ return [NSNumber numberWithDouble:cos([self popOperand:stack])];}
+
++(NSNumber *)piOperation:(id)stack{ return [NSNumber numberWithDouble:M_PI];}
 
 
 -(void)clearOperands {
-  [self.operandStack removeAllObjects];
+  [self.programStack removeAllObjects];
 }
 
 @end
